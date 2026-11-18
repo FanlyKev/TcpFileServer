@@ -24,7 +24,7 @@ TcpFileServer::TcpFileServer(QWidget *parent)
     connect(startButton, SIGNAL(clicked()), this, SLOT(start()));
     connect(quitButton, SIGNAL(clicked()), this, SLOT(close()));
     connect(&tcpServer, SIGNAL(newConnection()), this, SLOT(acceptConnection()));
-    connect(&tcpServer, SIGNAL(acceptError(QAbstractSocket::SocketError)), this, SLOT(displayError(QAbstractSocket::SocketError));
+    connect(&tcpServer, SIGNAL(acceptError(QAbstractSocket::SocketError)), this, SLOT(displayError(QAbstractSocket::SocketError)));
 }
 
 TcpFileServer::~TcpFileServer()
@@ -45,15 +45,42 @@ void TcpFileServer::start()
 
 void TcpFileServer::acceptConnection()
 {
-
+    tcpServerConnection = tcpServer.nextPendingConnection();
+    connect(tcpServerConnection, SIGNAL(readyRead()), this, SLOT(updateServerProgress()));
+    connect(tcpServerConnection, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(displayError(QAbstractSocket::SocketError)));
+    serverStatusLabel->setText(tr("接受連線"));
+    tcpServer.close();
 }
 
 void TcpFileServer::updateServerProgress()
 {
-
+    QDataStream in(tcpServerConnection);
+    in.setVersion(QDataStream::Qt_4_6);
+    if(byteRecieved <= sizeof(qint64) * 2)
+    {
+        if((fileNameSize == 0) && (tcpServerConnection->bytesAvailable() >= sizeof(qint64) * 2))
+        {
+            in >> totalBytes >> fileNameSize;
+            byteRecieved += sizeof(qint64) * 2;
+        }
+        if((fileNameSize != 0) && (tcpServerConnection->bytesAvailable() >= fileNameSize))
+        {
+            in >> fileName;
+            byteRecieved += fileNameSize;
+            localFile = new QFile(fileName);
+            if(!localFile->open(QFile::WriteOnly))
+            {
+                QMessageBox::warning(this, tr("應用程式"), tr("無法讀取檔案 %1 : \n%2.").arg(fileName).arg(localFile->errorString()));
+                return;
+            }
+        } else{
+            return;
+        }
+    }
 }
 
 void displayError(QAbstractSocket::SocketError socketError)
 {
+
 
 }
